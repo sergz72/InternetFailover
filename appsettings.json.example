@@ -1,0 +1,14 @@
+{
+  "Settings": {
+    "TestIP": "8.8.8.8",
+    "PingInterval": 2,
+    "PingFailuresBeforeSwitchToBackup": 5,
+    "SuccessPingsBeforeSwitchToMain": 5,
+    "MainInterface": "192.168.178.1",
+    "MainInterfaceSSID": "FRITZ!Box 6660 Cable IZ",
+    "MainInterfaceName": "TP-Link Wireless USB Adapter",
+    "BackupInterface": "192.168.1.1",
+    "BackupInterfaceSSID": "________5",
+    "BackupInterfaceName": "Intel(R) Wi-Fi 6 AX201 160MHz"
+  }
+}
