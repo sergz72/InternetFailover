@@ -141,6 +141,8 @@ void StartNetworkWatching(IPAddress testIp, IPAddress mainIp, int mainInterfaceI
     {
       if (!pingException)
         Console.WriteLine("{0} Ping result {1}", DateTime.Now, status);
+      if (successCounter > 0)
+        successCounter = 0;
       if (failureCounter >= 0)
       {
         failureCounter++;
