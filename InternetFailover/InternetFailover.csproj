@@ -9,10 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="CodeCowboy.NetworkRoute" Version="1.0.0" />
-      <PackageReference Include="ManagedNativeWifi" Version="2.3.0" />
-      <PackageReference Include="Microsoft.Extensions.Configuration" Version="6.0.1" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0" />
+      <ProjectReference Include="..\InternetFailover.Core\InternetFailover.Core.csproj" />
     </ItemGroup>
 
 </Project>
