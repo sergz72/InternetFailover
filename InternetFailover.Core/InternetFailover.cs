@@ -91,9 +91,23 @@ public abstract class InternetFailover
     _mainInterfaceIndex = mainInterface!.GetIPProperties().GetIPv4Properties().Index;
     _backupInterfaceIndex = backupInterface!.GetIPProperties().GetIPv4Properties().Index;
     _mainInterfaceId = GetInterfaceId(_mainInterfaceName, "Main");
-    _backupInterfaceId = GetInterfaceId(_mainInterfaceName, "Backup");
+    _backupInterfaceId = GetInterfaceId(_backupInterfaceName, "Backup");
   }
 
+  public void LogConfiguration()
+  {
+    Log("TestIP = {0}", _testIp);
+    Log("PingInterval = {0}", _pingInterval);
+    Log("PingFailuresBeforeSwitchToBackup = {0}", _pingFailuresBeforeSwitchToBackup);
+    Log("SuccessPingsBeforeSwitchToMain = {0}", _successPingsBeforeSwitchToMain);
+    Log("MainInterface = {0}", _mainInterfaceIp);
+    Log("MainInterfaceSSID = {0}", _mainInterfaceSsid);
+    Log("MainInterfaceName = {0}", _mainInterfaceName);
+    Log("BackupInterface = {0}", _backupInterfaceIp);
+    Log("BackupInterfaceSSID = {0}", _backupInterfaceSsid);
+    Log("BackupInterfaceName = {0}", _backupInterfaceName);
+  }
+  
   public void Prepare()
   {
     StartWiFiWatching();

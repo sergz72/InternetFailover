@@ -7,6 +7,7 @@ class InternatFalioverConsole: Core.InternetFailover
     try
     {
       var instance = new InternatFalioverConsole();
+      instance.LogConfiguration();
       instance.Prepare();
       instance.StartNetworkWatching();
     }
