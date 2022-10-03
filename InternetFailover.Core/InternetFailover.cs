@@ -17,7 +17,7 @@ public abstract class InternetFailover
   
   public delegate void StateChangedDelegate(bool connectedToMain);
 
-  public event StateChangedDelegate StateChanged;
+  public event StateChangedDelegate? StateChanged;
 
   private static readonly IPAddress ZeroIp = IPAddress.Parse("0.0.0.0");
   private static readonly IPAddress OneIpMask = IPAddress.Parse("255.255.255.255");
@@ -39,6 +39,7 @@ public abstract class InternetFailover
   private readonly Guid _backupInterfaceId;
   private volatile bool _stayOnMain, _stayOnBackup, _connectedToMain, _forcedModeSwitchDone;
   private readonly Mutex _mutex;
+  private volatile bool _shutdown;
   
   protected InternetFailover()
   {
@@ -47,6 +48,7 @@ public abstract class InternetFailover
     _connectedToMain = true;
     _forcedModeSwitchDone = false;
     _mutex = new Mutex();
+    _shutdown = false;
     
     IConfiguration config = new ConfigurationBuilder()
       .AddJsonFile("appsettings.json")
@@ -108,6 +110,11 @@ public abstract class InternetFailover
     _backupInterfaceId = GetInterfaceId(_backupInterfaceName, "Backup");
   }
 
+  public void Shutdown()
+  {
+    _shutdown = true;
+  }
+  
   public void LogConfiguration()
   {
     Log("TestIP = {0}", _testIp);
@@ -272,6 +279,8 @@ public abstract class InternetFailover
     var successCounter = -1;
     for (;;)
     {
+      if (_shutdown)
+        return;
       _mutex.WaitOne();
       if (_stayOnMain)
       {
@@ -413,6 +422,8 @@ public abstract class InternetFailover
     {
       for (;;)
       {
+        if (_shutdown)
+          return;
         foreach (var i in NativeWifi.EnumerateInterfaces())
         {
           if (i.Id == _mainInterfaceId && i.State == InterfaceState.Disconnected)

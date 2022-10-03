@@ -63,6 +63,7 @@ namespace InternetFailover.Wpf
 
     protected override void OnExit(ExitEventArgs e)
     {
+      _failoverHandler!.Shutdown();
       _notifyIcon!.Dispose();
       base.OnExit(e);
     }
