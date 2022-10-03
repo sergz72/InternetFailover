@@ -15,6 +15,10 @@ public abstract class InternetFailover
     }
   }
   
+  public delegate void StateChangedDelegate(bool connectedToMain);
+
+  public event StateChangedDelegate StateChanged;
+
   private static readonly IPAddress ZeroIp = IPAddress.Parse("0.0.0.0");
   private static readonly IPAddress OneIpMask = IPAddress.Parse("255.255.255.255");
   
@@ -22,6 +26,7 @@ public abstract class InternetFailover
   private readonly IPAddress _mainInterfaceIp;
   private readonly IPAddress _backupInterfaceIp;
   private readonly int _pingInterval;
+  private readonly int _pingTimeout;
   private readonly int _pingFailuresBeforeSwitchToBackup;
   private readonly int _successPingsBeforeSwitchToMain;
   private readonly string _mainInterfaceSsid;
@@ -32,9 +37,17 @@ public abstract class InternetFailover
   private readonly int _backupInterfaceIndex;
   private readonly Guid _mainInterfaceId;
   private readonly Guid _backupInterfaceId;
-
+  private volatile bool _stayOnMain, _stayOnBackup, _connectedToMain, _forcedModeSwitchDone;
+  private readonly Mutex _mutex;
+  
   protected InternetFailover()
   {
+    _stayOnMain = false;
+    _stayOnBackup = false;
+    _connectedToMain = true;
+    _forcedModeSwitchDone = false;
+    _mutex = new Mutex();
+    
     IConfiguration config = new ConfigurationBuilder()
       .AddJsonFile("appsettings.json")
       .Build();
@@ -42,6 +55,7 @@ public abstract class InternetFailover
     var section = config.GetRequiredSection("Settings");
     _testIp = GetIpVariable(section, "TestIP");
     _pingInterval = GetIntVariable(section, "PingInterval") * 1000;
+    _pingTimeout = GetIntVariable(section, "PingTimeout") * 1000;
     _pingFailuresBeforeSwitchToBackup = GetIntVariable(section, "PingFailuresBeforeSwitchToBackup");
     _successPingsBeforeSwitchToMain = GetIntVariable(section, "SuccessPingsBeforeSwitchToMain");
     _mainInterfaceIp = GetIpVariable(section, "MainInterface");
@@ -97,7 +111,8 @@ public abstract class InternetFailover
   public void LogConfiguration()
   {
     Log("TestIP = {0}", _testIp);
-    Log("PingInterval = {0}", _pingInterval);
+    Log("PingInterval = {0}", _pingInterval / 1000);
+    Log("PingTimeout = {0}", _pingTimeout / 1000);
     Log("PingFailuresBeforeSwitchToBackup = {0}", _pingFailuresBeforeSwitchToBackup);
     Log("SuccessPingsBeforeSwitchToMain = {0}", _successPingsBeforeSwitchToMain);
     Log("MainInterface = {0}", _mainInterfaceIp);
@@ -191,13 +206,58 @@ public abstract class InternetFailover
   }
 
 
-  private void SwitchTo(IPAddress a, string name, int interfaceIndex)
+  private void SwitchToMain()
   {
-    Log("{0} Switching to {1}...", DateTime.Now, name);
-    CleanRouteTable();
-    CreateRoute(ZeroIp, ZeroIp, a, interfaceIndex);
+    if (!_connectedToMain)
+    {
+      _connectedToMain = true;
+      Log("{0} Switching to main...", DateTime.Now);
+      CleanRouteTable();
+      CreateRoute(ZeroIp, ZeroIp, _mainInterfaceIp, _mainInterfaceIndex);
+      StateChanged?.Invoke(true);
+    }
   }
 
+  private void SwitchToBackup()
+  {
+    if (_connectedToMain)
+    {
+      _connectedToMain = false;
+      Log("{0} Switching to backup...", DateTime.Now);
+      CleanRouteTable();
+      CreateRoute(ZeroIp, ZeroIp, _backupInterfaceIp, _backupInterfaceIndex);
+      StateChanged?.Invoke(false);
+    }
+  }
+
+  public void StayOnMain()
+  {
+    _mutex.WaitOne();
+    _stayOnBackup = false;
+    _stayOnMain = true;
+    _forcedModeSwitchDone = false;
+    _mutex.ReleaseMutex();
+  }
+
+  public void StayOnBackup()
+  {
+    _mutex.WaitOne();
+    _stayOnMain = false;
+    _stayOnBackup = true;
+    _forcedModeSwitchDone = false;
+    _mutex.ReleaseMutex();
+  }
+
+  public void AutomaticMode()
+  {
+    _mutex.WaitOne();
+    SwitchToMain();
+    _stayOnMain = false;
+    _stayOnBackup = false;
+    _forcedModeSwitchDone = false;
+    _mutex.ReleaseMutex();
+  }
+  
   public void StartNetworkWatching()
   {
     var p = new Ping();
@@ -212,51 +272,83 @@ public abstract class InternetFailover
     var successCounter = -1;
     for (;;)
     {
-      var status = IPStatus.Unknown;
-      var pingException = false;
-      try
+      _mutex.WaitOne();
+      if (_stayOnMain)
       {
-        var result = p.Send(_testIp, 1500, data, options);
-        status = result.Status;
-      }
-      catch (Exception e)
-      {
-        Log("{0} Ping exception: {1}", DateTime.Now, e.Message);
-        pingException = true;
-      }
-
-      if (status != IPStatus.Success)
-      {
-        if (!pingException)
-          Log("{0} Ping result {1}", DateTime.Now, status);
-        if (successCounter > 0)
-          successCounter = 0;
-        if (failureCounter >= 0)
+        if (!_forcedModeSwitchDone)
         {
-          failureCounter++;
-          if (failureCounter >= _pingFailuresBeforeSwitchToBackup)
-          {
-            successCounter = 0;
-            failureCounter = -1;
-            SwitchTo(_backupInterfaceIp, "backup", _backupInterfaceIndex);
-          }
+          _forcedModeSwitchDone = true;
+          _mutex.ReleaseMutex();
+          failureCounter = 0;
+          successCounter = -1;
+          SwitchToMain();
         }
+        else
+          _mutex.ReleaseMutex();
+      }
+      else if (_stayOnBackup)
+      {
+        if (!_forcedModeSwitchDone)
+        {
+          _forcedModeSwitchDone = true;
+          _mutex.ReleaseMutex();
+          failureCounter = 0;
+          successCounter = -1;
+          SwitchToBackup();
+        }
+        else
+          _mutex.ReleaseMutex();
       }
       else
       {
-        if (failureCounter > 0)
-          failureCounter = 0;
-        if (successCounter >= 0)
+        _mutex.ReleaseMutex();
+        var status = IPStatus.Unknown;
+        var pingException = false;
+        try
         {
-          successCounter++;
-          if (successCounter >= _successPingsBeforeSwitchToMain)
+          var result = p.Send(_testIp, _pingTimeout, data, options);
+          status = result.Status;
+        }
+        catch (Exception e)
+        {
+          Log("{0} Ping exception: {1}", DateTime.Now, e.Message);
+          pingException = true;
+        }
+
+        if (status != IPStatus.Success)
+        {
+          if (!pingException)
+            Log("{0} Ping result {1}", DateTime.Now, status);
+          if (successCounter > 0)
+            successCounter = 0;
+          if (failureCounter >= 0)
           {
-            successCounter = -1;
+            failureCounter++;
+            if (failureCounter >= _pingFailuresBeforeSwitchToBackup)
+            {
+              successCounter = 0;
+              failureCounter = -1;
+              SwitchToBackup();
+            }
+          }
+        }
+        else
+        {
+          if (failureCounter > 0)
             failureCounter = 0;
-            SwitchTo(_mainInterfaceIp, "main", _mainInterfaceIndex);
+          if (successCounter >= 0)
+          {
+            successCounter++;
+            if (successCounter >= _successPingsBeforeSwitchToMain)
+            {
+              successCounter = -1;
+              failureCounter = 0;
+              SwitchToMain();
+            }
           }
         }
       }
+
       Thread.Sleep(_pingInterval);
     }
   }

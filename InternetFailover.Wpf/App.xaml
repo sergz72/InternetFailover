@@ -1,0 +1,29 @@
+﻿<Application x:Class="InternetFailover.Wpf.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:tb="http://www.hardcodet.net/taskbar"
+             xmlns:wpf="clr-namespace:InternetFailover.Wpf"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary>
+                    <ContextMenu x:Shared="false" x:Key="SysTrayMenu">
+                        <wpf:RadioMenuItem x:Name="StayOnMainMenuItem" IsCheckable="True" Header="Stay on Main" Click="StayOnMain_OnClick" />
+                        <wpf:RadioMenuItem x:Name="StayOnBackupMenuItem" IsCheckable="True" Header="Stay on backup" Click="StayOnBackup_OnClick" />
+                        <wpf:RadioMenuItem x:Name="AutomaticModeMenuItem" IsCheckable="True" IsChecked="True" Header="Automatic mode" Click="AutomaticMode_OnClick" />
+                        <Separator />
+                        <MenuItem Header="Exit" Click="Exit_OnClick" />
+                    </ContextMenu>
+
+                    <tb:TaskbarIcon x:Key="NotifyIcon"
+                                    IconSource="green.ico"
+                                    ToolTipText="Left click to show the log, right-click for menu"
+                                    MenuActivation="RightClick"
+                                    ContextMenu="{StaticResource SysTrayMenu}">
+                    </tb:TaskbarIcon>
+                    </ResourceDictionary>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
