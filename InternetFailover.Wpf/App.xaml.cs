@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -14,7 +15,7 @@ namespace InternetFailover.Wpf
   {
     private class InternetFailoverWpf : InternetFailover.Core.InternetFailover
     {
-      private MainWindow _mw;
+      private readonly MainWindow _mw;
       
       public InternetFailoverWpf(MainWindow mw)
       {
@@ -45,7 +46,8 @@ namespace InternetFailover.Wpf
         _failoverHandler.LogConfiguration();
         _failoverHandler.StateChanged += FailoverHandlerOnStateChanged;
         _failoverHandler.Prepare();
-        _failoverHandler.StartNetworkWatching();
+        var t = new Thread(() => _failoverHandler.StartNetworkWatching());
+        t.Start();
       }
       catch (Exception ex)
       {
@@ -56,7 +58,7 @@ namespace InternetFailover.Wpf
 
     private void FailoverHandlerOnStateChanged(bool connectedToMain)
     {
-      _notifyIcon!.IconSource = connectedToMain ? _green : _yellow;
+      _notifyIcon!.Dispatcher.Invoke(() => _notifyIcon!.IconSource = connectedToMain ? _green : _yellow);
     }
 
     protected override void OnExit(ExitEventArgs e)
