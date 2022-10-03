@@ -9,6 +9,7 @@ Requires appsettings.json configuration file with the following parameters:
   "Settings": {
     "TestIP": "???",
     "PingInterval": 2,
+    "PingTimeout": 3,
     "PingFailuresBeforeSwitchToBackup": 5,
     "SuccessPingsBeforeSwitchToMain": 5,
     "MainInterface": "???",
@@ -25,6 +26,7 @@ Parameters meanings:
 
 - TestIP - IP address to which the application will send ICMP requests to check that internet connection is alive. Example value : 8.8.8.8
 - PingInterval - interval in seconds between ICMP requests to TestIP. Example value: 2.
+- PingTimeout - ICMP request timeout in seconds. Example value: 3.
 - PingFailuresBeforeSwitchToBackup - number of ICMP request failures in a row that invokes switch from main to backup internet connection. Example value: 5.
 - SuccessPingsBeforeSwitchToMain - number of ICMP request successes in a row that invokes switch from backup to main internet connection. Example value: 5.
 - MainInterface - main internet interface gateway IP address ( WiFi router IP address ).
