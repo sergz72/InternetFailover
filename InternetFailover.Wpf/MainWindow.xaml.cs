@@ -18,7 +18,7 @@ namespace InternetFailover.Wpf
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-      if ((bool)e.NewValue)
+      if ((bool)e.NewValue && !LbLog.Items.IsEmpty)
         LbLog.ScrollIntoView(LbLog.Items[^1]);
     }
 

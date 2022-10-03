@@ -8,8 +8,10 @@
     "MainInterface": "192.168.178.1",
     "MainInterfaceSSID": "FRITZ!Box 6660 Cable IZ",
     "MainInterfaceName": "TP-Link Wireless USB Adapter",
+    "MainNetworkName": "Wireless network 2",
     "BackupInterface": "192.168.1.1",
     "BackupInterfaceSSID": "________5",
     "BackupInterfaceName": "Intel(R) Wi-Fi 6 AX201 160MHz"
+    "BackupNetworkName": "Wireless network",
   }
 }

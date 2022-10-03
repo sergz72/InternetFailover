@@ -1,7 +1,7 @@
 # InternetFailover
 
 Allows to switch to backup WiFi network in case of Internet issues in the main WiFi network (failover).
-Requires static IP without default gateway to be used on the both network adapters. Does not support IPV6 for now. IPV6 should be turned off for both network interfaces.
+Requires static IP without default gateway to be set in IPV4 configuration on the both network adapters.
 Requires appsettings.json configuration file with the following parameters:
 
 ```json
@@ -15,9 +15,11 @@ Requires appsettings.json configuration file with the following parameters:
     "MainInterface": "???",
     "MainInterfaceSSID": "???",
     "MainInterfaceName": "???",
+    "MainNetworkName": "???",
     "BackupInterface": "???",
     "BackupInterfaceSSID": "???",
-    "BackupInterfaceName": "???"
+    "BackupInterfaceName": "???",
+    "BackupNetworkName": "???"
   }
 }
 ```
@@ -32,6 +34,8 @@ Parameters meanings:
 - MainInterface - main internet interface gateway IP address ( WiFi router IP address ).
 - MainInterfaceSSID - WiFi SSID of main internet interface.
 - MainInterfaceName - network adapter name for main internet interface.
+- MainNetworkName - network name for main internet interface.
 - BackupInterface - backup internet interface gateway IP address ( WiFi router IP address ).
 - BackupInterfaceSSID - WiFi SSID of backup internet interface.
 - BackupInterfaceName - network adapter name for backup internet interface.
+- BackupNetworkName - network name for backup internet interface.

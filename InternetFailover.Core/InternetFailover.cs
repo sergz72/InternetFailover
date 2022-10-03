@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Management.Automation;
+using System.Net;
 using System.Net.NetworkInformation;
 using CodeCowboy.NetworkRoute;
 using ManagedNativeWifi;
@@ -31,8 +32,10 @@ public abstract class InternetFailover
   private readonly int _successPingsBeforeSwitchToMain;
   private readonly string _mainInterfaceSsid;
   private readonly string _mainInterfaceName;
+  private readonly string _mainNetworkName;
   private readonly string _backupInterfaceSsid;
   private readonly string _backupInterfaceName;
+  private readonly string _backupNetworkName;
   private readonly int _mainInterfaceIndex;
   private readonly int _backupInterfaceIndex;
   private readonly Guid _mainInterfaceId;
@@ -63,9 +66,11 @@ public abstract class InternetFailover
     _mainInterfaceIp = GetIpVariable(section, "MainInterface");
     _mainInterfaceSsid = GetStringVariable(section, "MainInterfaceSSID");
     _mainInterfaceName = GetStringVariable(section, "MainInterfaceName");
+    _mainNetworkName = GetStringVariable(section, "MainNetworkName");
     _backupInterfaceIp = GetIpVariable(section, "BackupInterface");
     _backupInterfaceSsid = GetStringVariable(section, "BackupInterfaceSSID");
     _backupInterfaceName = GetStringVariable(section, "BackupInterfaceName");
+    _backupNetworkName = GetStringVariable(section, "BackupNetworkName");
 
     NetworkInterface? mainInterface = null;
     NetworkInterface? backupInterface = null;
@@ -135,6 +140,7 @@ public abstract class InternetFailover
     StartWiFiWatching();
     WaitForWiFi();
     PrepareRouteTable();
+    SetupIpv6();
   }
   
   protected abstract void Log(string message, params object[] parameters);
@@ -221,6 +227,7 @@ public abstract class InternetFailover
       Log("{0} Switching to main...", DateTime.Now);
       CleanRouteTable();
       CreateRoute(ZeroIp, ZeroIp, _mainInterfaceIp, _mainInterfaceIndex);
+      SetupIpv6();
       StateChanged?.Invoke(true);
     }
   }
@@ -233,6 +240,7 @@ public abstract class InternetFailover
       Log("{0} Switching to backup...", DateTime.Now);
       CleanRouteTable();
       CreateRoute(ZeroIp, ZeroIp, _backupInterfaceIp, _backupInterfaceIndex);
+      SetupIpv6();
       StateChanged?.Invoke(false);
     }
   }
@@ -439,5 +447,29 @@ public abstract class InternetFailover
       }
     });
     t.Start();
+  }
+
+  private void SetupIpv6()
+  {
+    using var powerShell = PowerShell.Create();
+    powerShell.AddScript("Set-ExecutionPolicy Unrestricted");
+    powerShell.AddScript("Import-Module NetAdapter");
+    if (_connectedToMain)
+    {
+      powerShell.AddScript($"Disable-NetAdapterBinding -Name '{_backupNetworkName}' -ComponentID ms_tcpip6");
+      powerShell.AddScript($"Enable-NetAdapterBinding -Name '{_mainNetworkName}' -ComponentID ms_tcpip6");
+    }
+    else
+    {
+      powerShell.AddScript($"Disable-NetAdapterBinding -Name '{_mainNetworkName}' -ComponentID ms_tcpip6");
+      powerShell.AddScript($"Enable-NetAdapterBinding -Name '{_backupNetworkName}' -ComponentID ms_tcpip6");
+    }
+
+    var result = powerShell.Invoke();
+    if (powerShell.HadErrors)
+    {
+      foreach (var error in powerShell.Streams.Error)
+        Log(error.ToString());
+    }
   }
 }
