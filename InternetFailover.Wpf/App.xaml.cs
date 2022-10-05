@@ -45,8 +45,11 @@ namespace InternetFailover.Wpf
         _failoverHandler = new InternetFailoverWpf(w);
         _failoverHandler.LogConfiguration();
         _failoverHandler.StateChanged += FailoverHandlerOnStateChanged;
-        _failoverHandler.Prepare();
-        var t = new Thread(() => _failoverHandler.StartNetworkWatching());
+        var t = new Thread(() =>
+        {
+          _failoverHandler.Prepare();
+          _failoverHandler.StartNetworkWatching();
+        });
         t.Start();
       }
       catch (Exception ex)
