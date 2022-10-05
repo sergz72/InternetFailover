@@ -130,13 +130,16 @@ public abstract class InternetFailover
     Log("MainInterface = {0}", _mainInterfaceIp);
     Log("MainInterfaceSSID = {0}", _mainInterfaceSsid);
     Log("MainInterfaceName = {0}", _mainInterfaceName);
+    Log("MainNetworkName = {0}", _mainNetworkName);
     Log("BackupInterface = {0}", _backupInterfaceIp);
     Log("BackupInterfaceSSID = {0}", _backupInterfaceSsid);
     Log("BackupInterfaceName = {0}", _backupInterfaceName);
+    Log("BackupNetworkName = {0}", _backupNetworkName);
   }
   
   public void Prepare()
   {
+    DisconnectWiFi();
     StartWiFiWatching();
     WaitForWiFi();
     PrepareRouteTable();
@@ -423,6 +426,35 @@ public abstract class InternetFailover
     }
     throw new ConfigurationException("{0} WiFi interface not found.", name);
   }
+
+  private void DisconnectWiFi()
+  {
+    Log("Wifi disconnect...");
+    var someConnected = true;
+    while (someConnected)
+    {
+      someConnected = false;
+      foreach (var i in NativeWifi.EnumerateInterfaces())
+      {
+        if (i.Description == _mainInterfaceName && i.State != InterfaceState.Disconnected)
+        {
+          someConnected = true;
+          Log("Disconnecting main WiFi interface...");
+          NativeWifi.DisconnectNetwork(_mainInterfaceId);
+          break;
+        }
+        if (i.Description == _backupInterfaceName && i.State != InterfaceState.Disconnected)
+        {
+          someConnected = true;
+          Log("Disconnecting backup WiFi interface...");
+          NativeWifi.DisconnectNetwork(_backupInterfaceId);
+          break;
+        }
+      }
+      Thread.Sleep(_pingInterval);
+    }
+    Log("Wifi disconnect is done.");
+  }
   
   private void StartWiFiWatching()
   {
@@ -465,7 +497,7 @@ public abstract class InternetFailover
       powerShell.AddScript($"Enable-NetAdapterBinding -Name '{_backupNetworkName}' -ComponentID ms_tcpip6");
     }
 
-    var result = powerShell.Invoke();
+    powerShell.Invoke();
     if (powerShell.HadErrors)
     {
       foreach (var error in powerShell.Streams.Error)
