@@ -41,7 +41,7 @@ public abstract class InternetFailover
   private readonly Guid _mainInterfaceId;
   private readonly Guid _backupInterfaceId;
   private volatile bool _stayOnMain, _stayOnBackup, _connectedToMain, _forcedModeSwitchDone;
-  private readonly Mutex _mutex;
+  private readonly Mutex _mutex, _rtMutex;
   private volatile bool _shutdown;
   
   protected InternetFailover()
@@ -51,6 +51,7 @@ public abstract class InternetFailover
     _connectedToMain = true;
     _forcedModeSwitchDone = false;
     _mutex = new Mutex();
+    _rtMutex = new Mutex();
     _shutdown = false;
     
     IConfiguration config = new ConfigurationBuilder()
@@ -215,10 +216,29 @@ public abstract class InternetFailover
     CreateRoute(_testIp, OneIpMask, _mainInterfaceIp, _mainInterfaceIndex);
   }
 
+  private void TestIpRouteCheck()
+  {
+    Log("Test IP route check....");
+    _rtMutex.WaitOne();
+    foreach (var entry in Ip4RouteTable.GetRouteTable())
+    {
+      if (entry.DestinationIP.Equals(_testIp))
+      {
+        _rtMutex.ReleaseMutex();
+        return;
+      }
+    }
+
+    CreateRoute(_testIp, OneIpMask, _mainInterfaceIp, _mainInterfaceIndex);
+    _rtMutex.ReleaseMutex();
+  }
+
   private void PrepareRouteTable()
   {
+    _rtMutex.WaitOne();
     CleanRouteTable();
     CreateRoute(ZeroIp, ZeroIp, _mainInterfaceIp, _mainInterfaceIndex);
+    _rtMutex.ReleaseMutex();
   }
 
 
@@ -228,8 +248,10 @@ public abstract class InternetFailover
     {
       _connectedToMain = true;
       Log("{0} Switching to main...", DateTime.Now);
+      _rtMutex.WaitOne();
       CleanRouteTable();
       CreateRoute(ZeroIp, ZeroIp, _mainInterfaceIp, _mainInterfaceIndex);
+      _rtMutex.ReleaseMutex();
       SetupIpv6();
       StateChanged?.Invoke(true);
     }
@@ -241,8 +263,10 @@ public abstract class InternetFailover
     {
       _connectedToMain = false;
       Log("{0} Switching to backup...", DateTime.Now);
+      _rtMutex.WaitOne();
       CleanRouteTable();
       CreateRoute(ZeroIp, ZeroIp, _backupInterfaceIp, _backupInterfaceIndex);
+      _rtMutex.ReleaseMutex();
       SetupIpv6();
       StateChanged?.Invoke(false);
     }
@@ -460,17 +484,30 @@ public abstract class InternetFailover
   {
     var t = new Thread(() =>
     {
+      var mainConnectIsPending = false;
       for (;;)
       {
         if (_shutdown)
           return;
         foreach (var i in NativeWifi.EnumerateInterfaces())
         {
-          if (i.Id == _mainInterfaceId && i.State == InterfaceState.Disconnected)
+          if (i.Id == _mainInterfaceId)
           {
-            ConnectWiFi(_mainInterfaceName, _mainInterfaceId, _mainInterfaceSsid);
-          }
-          if (i.Id == _backupInterfaceId && i.State == InterfaceState.Disconnected)
+            switch (i.State)
+            {
+              case InterfaceState.Disconnected:
+                ConnectWiFi(_mainInterfaceName, _mainInterfaceId, _mainInterfaceSsid);
+                mainConnectIsPending = true;
+                break;
+              case InterfaceState.Connected:
+                if (mainConnectIsPending)
+                {
+                  mainConnectIsPending = false;
+                  TestIpRouteCheck();
+                }
+                break;
+            }
+          } else if (i.Id == _backupInterfaceId && i.State == InterfaceState.Disconnected)
           {
             ConnectWiFi(_backupInterfaceName, _backupInterfaceId, _backupInterfaceSsid);
           }
